@@ -5,6 +5,32 @@ import json
 
 from pprint import pprint
 
+
+# Get existing open positions
+def is_open_positions(client,market):
+    time.sleep(0.2)
+
+    # Get positions
+    all_positions = client.private.get_positions(
+        market=market,
+        status="OPEN"
+    )
+
+    # Determine if open
+    if len(all_positions.data["positions"]) > 0:
+        return True
+    else :
+        return False
+
+# Check order status
+def check_order_status(client, order_id):
+    order = client.private.get_order_by_id(order_id)
+    if order.data:
+        if "order" in order.data.keys():
+            return order.data["order"]["status"]
+    return "FAILED"
+
+
 # Place market order
 
 def place_market_order(client, market, side, size, price, reduce_only):
