@@ -76,13 +76,14 @@ def manage_trade_exits(client):
     order_side_m2 = order_m2.data["order"]["side"]
 
     # Perform matching checks
-    check_m1 = position_market_m1 == order_market_m1 and position_size_m1 == order_size_m1 and position_side_m1 == order_side_m1
-    check_m2 = position_market_m2 == order_market_m2 and position_size_m2 == order_size_m2 and position_side_m2 == order_side_m2
+    check_m1 = position_market_m1 == order_market_m1 and position_size_m1 >= order_size_m1 and position_side_m1 == order_side_m1
+    check_m2 = position_market_m2 == order_market_m2 and position_size_m2 >= order_size_m2 and position_side_m2 == order_side_m2
     check_live = position_market_m1 in markets_live and position_market_m2 in markets_live
 
     # Guard: If not all match exit with error
     if not check_m1 or not check_m2 or not check_live:
       print(f"Warning: Not all open positions match exchange records for {position_market_m1} and {position_market_m2}")
+      save_output.append(position)
       continue
 
     # Get prices
@@ -187,7 +188,7 @@ def manage_trade_exits(client):
         print(f"Exit failed for {position_market_m1} with {position_market_m2}")
         save_output.append(position)
 
-    # Keep record if items and save
+    # Keep record of items and save
     else:
       save_output.append(position)
 
