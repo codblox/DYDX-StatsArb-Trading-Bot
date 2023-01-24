@@ -5,14 +5,19 @@ from func_public import construct_market_prices
 from func_cointegration import store_cointegration_results
 from func_entry_pairs import open_positions
 from func_exit_pairs import manage_trade_exits
+from func_messaging import send_message
 
 if __name__=="__main__":
+
+    # Message on start
+    send_message("Bot launch successful")
     # Connect to client
     try :
         print("Connecting to Client...")
         client = connect_dydx()
     except Exception as e:
         print("Error connecting to client : ", e)
+        send_message(f"Failed to connect to client {e}")
         exit(1)
 
     #Abort all open positions
@@ -22,6 +27,7 @@ if __name__=="__main__":
             close_orders = abort_all_open_positions(client)
         except Exception as e:
             print("Error closing all positions : ", e)
+            send_message(f"Error closing all positions {e}")
             exit(1)
 
 
@@ -35,6 +41,7 @@ if __name__=="__main__":
             
         except Exception as e:
             print("Error fetching market data ", e)
+            send_message(f"Error constructing market prices {e}")
             exit(1)
 
         # Store cointegrated pairs
@@ -47,6 +54,7 @@ if __name__=="__main__":
             
         except Exception as e:
             print("Error saving cointegrated pairs : ", e)
+            send_message(f"Error storing cointegrated pairs {e}")
             exit(1)
 
     while True:            
@@ -58,6 +66,7 @@ if __name__=="__main__":
                 manage_trade_exits(client)
             except Exception as e:
                 print("Error exiting positions : ", e)
+                send_message(f"Error exiting positions {e}")
                 exit(1)
 
 
@@ -70,4 +79,5 @@ if __name__=="__main__":
                 open_positions(client)
             except Exception as e:
                 print("Error trading pairs : ", e)
+                send_message(f"Error trading pairs {e}")
                 exit(1)

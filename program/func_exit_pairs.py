@@ -1,11 +1,11 @@
-from constants import CLOSE_AT_ZSCORE_CROSS
+from constants import CLOSE_AT_ZSCORE_CROSS, ZSCORE_THRESH
 from func_utils import format_number
 from func_public import get_candles_recent
 from func_cointegration import calculate_zscore
 from func_private import place_market_order
 import json
 import time
-
+from func_messaging import send_message
 from pprint import pprint
 
 # Manage trade exits
@@ -49,13 +49,17 @@ def manage_trade_exits(client):
 
     # Extract position matching information from file - market 1
     position_market_m1 = position["market_1"]
-    position_size_m1 = position["order_m1_size"]
+    position_size_m1 = float(position["order_m1_size"])
     position_side_m1 = position["order_m1_side"]
+    position_price_m1 = position["order_m1_price"]
 
     # Extract position matching information from file - market 2
     position_market_m2 = position["market_2"]
-    position_size_m2 = position["order_m2_size"]
+    position_size_m2 = float(position["order_m2_size"])
     position_side_m2 = position["order_m2_side"]
+    position_price_m2 = position["order_m2_price"]
+
+    print(f"Checking {position_market_m1} and {position_market_m2}")
 
     # Protect API
     time.sleep(0.5)
@@ -63,7 +67,7 @@ def manage_trade_exits(client):
     # Get order info m1 per exchange
     order_m1 = client.private.get_order_by_id(position["order_id_m1"])
     order_market_m1 = order_m1.data["order"]["market"]
-    order_size_m1 = order_m1.data["order"]["size"]
+    order_size_m1 = float(order_m1.data["order"]["size"])
     order_side_m1 = order_m1.data["order"]["side"]
 
     # Protect API
@@ -72,18 +76,19 @@ def manage_trade_exits(client):
     # Get order info m2 per exchange
     order_m2 = client.private.get_order_by_id(position["order_id_m2"])
     order_market_m2 = order_m2.data["order"]["market"]
-    order_size_m2 = order_m2.data["order"]["size"]
+    order_size_m2 = float(order_m2.data["order"]["size"])
     order_side_m2 = order_m2.data["order"]["side"]
 
     # Perform matching checks
-    check_m1 = position_market_m1 == order_market_m1 and position_size_m1 >= order_size_m1 and position_side_m1 == order_side_m1
-    check_m2 = position_market_m2 == order_market_m2 and position_size_m2 >= order_size_m2 and position_side_m2 == order_side_m2
+    check_m1 = position_market_m1 == order_market_m1 and position_size_m1 == order_size_m1 and position_side_m1 == order_side_m1
+    check_m2 = position_market_m2 == order_market_m2 and position_size_m2 == order_size_m2 and position_side_m2 == order_side_m2
     check_live = position_market_m1 in markets_live and position_market_m2 in markets_live
 
     # Guard: If not all match exit with error
     if not check_m1 or not check_m2 or not check_live:
       print(f"Warning: Not all open positions match exchange records for {position_market_m1} and {position_market_m2}")
-      save_output.append(position)
+      print(f"Removing pair {position_market_m1} and {position_market_m2}")
+      #save_output.append(position)
       continue
 
     # Get prices
@@ -109,8 +114,8 @@ def manage_trade_exits(client):
         z_score_current = calculate_zscore(spread).values.tolist()[-1]
 
       # Determine trigger
-      z_score_level_check = abs(z_score_current) >= abs(z_score_traded)
-      z_score_cross_check = (z_score_current < 0 and z_score_traded > 0) or (z_score_current > 0 and z_score_traded < 0)
+      z_score_level_check = abs(z_score_current) >= abs(ZSCORE_THRESH)
+      z_score_cross_check = (z_score_current <= 0 and z_score_traded > 0) or (z_score_current >= 0 and z_score_traded < 0)
 
       # Close trade
       if z_score_level_check and z_score_cross_check:
@@ -163,10 +168,11 @@ def manage_trade_exits(client):
         )
 
         print(close_order_m1["order"]["id"])
+        
         print(">>> Closing <<<")
 
         # Protect API
-        time.sleep(1)
+        time.sleep(0.5)
 
         # Close position for market 2
         print(">>> Closing market 2 <<<")
@@ -183,6 +189,28 @@ def manage_trade_exits(client):
 
         print(close_order_m2["order"]["id"])
         print(">>> Closing <<<")
+        
+        try :
+          if side_m1 == "BUY" :
+            pnlMarket1 = (float(position_price_m1) - float(close_order_m1['order']['price']))*float(position_size_m1)
+            pnlMarket2 = (float(position_price_m2) - float(close_order_m2['order']['price']))*float(position_size_m2)*-1
+
+            pnl = round(pnlMarket1 + pnlMarket2,2)
+            percentage_pnl = pnl*100/(float(position_price_m1)*float(position_size_m1)+float(position_price_m2)*float(position_size_m2))
+            print(f"Closed Position {position_market_m1} - {position_market_m2} with PnL : {pnl} Return : {percentage_pnl}%")
+            send_message(f"Closed Position {position_market_m1} - {position_market_m2} with PnL : {pnl} Return : {percentage_pnl}%")
+          else :
+            pnlMarket1 = (float(position_price_m1) - float(close_order_m1['order']['price']))*float(position_size_m1)*-1
+            pnlMarket2 = (float(position_price_m2) - float(close_order_m2['order']['price']))*float(position_size_m2)
+
+            pnl = round(pnlMarket1 + pnlMarket2,2)
+            percentage_pnl = pnl*100/(float(position_price_m1)*float(position_size_m1)+float(position_price_m2)*float(position_size_m2))
+            print(f"Closed Position {position_market_m1} - {position_market_m2} with PnL : {pnl} Return : {percentage_pnl}%")
+            send_message(f"Closed Position {position_market_m1} - {position_market_m2} with PnL : {pnl} Return : {percentage_pnl}%")
+
+        except Exception as e:
+          print(f"Error calculating pnl {e}")
+          
 
       except Exception as e:
         print(f"Exit failed for {position_market_m1} with {position_market_m2}")
@@ -194,5 +222,11 @@ def manage_trade_exits(client):
 
   # Save remaining items
   print(f"{len(save_output)} Items remaining. Saving file...")
+  import os
+
+# remove the old file
+  os.remove("bot_agents.json")
+
+# write the new file with the updated data
   with open("bot_agents.json", "w") as f:
-    json.dump(save_output, f)
+      json.dump(save_output, f)

@@ -1,5 +1,12 @@
 from dydx3.constants import API_HOST_GOERLI, API_HOST_MAINNET
 from decouple import config
+from func_connections import connect_dydx
+
+client = connect_dydx()
+account = client.private.get_account()
+account_id = account.data["account"]["id"]
+quote_balance = account.data["account"]["quoteBalance"]
+
 
 # !!! SELECT MODE !!!
 MODE = "DEVELOPMENT"
@@ -22,11 +29,15 @@ RESOLUTION = "1HOUR"
 # Stats Window
 WINDOW = 21
 
+# Tokens with factor 10
+TOKEN_FACTOR_10 = ["XLM-USD", "DOGE-USD", "TRX-USD"]
+
 # THRESHOLDS - OPENING
 MAX_HALF_LIFE = 24
-MIN_HALF_LIFE = 3
+MIN_HALF_LIFE = 1
 ZSCORE_THRESH = 1.5
-USD_PER_TRADE = 20
+LEVERAGE = 5
+USD_PER_TRADE = 0.01*quote_balance*LEVERAGE
 USD_MIN_COLLATERAL = 1600
 
 # THRESHOLDS - CLOSING
